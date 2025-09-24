@@ -2,8 +2,8 @@ import requests
 from PIL import Image
 from io import BytesIO
 import os
-# 导入 PaddleOCR
-from paddleocr import PaddleOCR, draw_ocr
+# 导入 PaddleOCR，移除 draw_ocr，因为它导致了 ImportError
+from paddleocr import PaddleOCR
 
 def ocr_from_url_with_paddleocr(url):
     """
@@ -23,18 +23,19 @@ def ocr_from_url_with_paddleocr(url):
         # use_angle_cls=True 表示会进行文本方向分类，这通常会提高识别率
         # lang='en' 指定识别语言为英语。如果图片包含中文或其他语言，需要相应修改。
         # 如果需要多语言识别，例如中英文混合，可以设置为 lang='ch,en'
+        # show_log=False 可以关闭 PaddleOCR 的默认日志输出
         ocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
 
         # 4. 执行OCR识别
         # result 是一个列表，每个元素是一个识别出的文本块，包含 bbox 和 text
-        # 例如: [[(x1, y1), (x2, y2), ...], '识别出的文本', confidence_score]
+        # 例如: [[(x1, y1), (x2, y2), ...], ['识别出的文本', confidence_score]]
         result = ocr.ocr(img_pil, cls=True)
 
         # 5. 提取纯文本
         recognized_texts = []
         if result and result[0]: # 确保result不是None或空列表
             for res in result[0]: # result[0] 包含所有识别结果
-                if len(res) > 1 and isinstance(res[1], list) and len(res[1]) > 0 and isinstance(res[1][0], list):
+                if len(res) > 1 and isinstance(res[1], list) and len(res[1]) > 0:
                     # res[1] 是一个列表, 包含 [text, confidence]
                     text = res[1][0]
                     recognized_texts.append(text)
@@ -62,17 +63,11 @@ print(result_text)
 # 检查识别结果是否是错误信息
 if result_text.startswith("下载图片失败:") or result_text.startswith("OCR识别失败:"):
     print("\n由于识别失败，无法生成 getsid.bat。")
-    # 可以在这里选择退出脚本或者生成一个包含错误信息的bat文件
-    # 例如：
-    # bat_content = f'''@echo off
-    # echo Error during OCR: {result_text}'''
 else:
     # 获取脚本所在目录
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
     # 生成bat文件内容
-    # 注意：你需要确保 sidchg64-3.0k.exe 在 getsid.bat 运行的环境是可访问的。
-    # 如果 sidchg64-3.0k.exe 和 getsid.bat 不在同一目录下，需要调整 cd 命令或提供完整路径。
     bat_content = f'''@echo off
 REM 脚本自动生成，基于PaddleOCR识别结果
 REM 原始URL: {image_url}
@@ -98,3 +93,4 @@ sidchg64-3.0k.exe /KEY="{result_text}" /F /R /OD /RESETALLAPPS'''
         print("-" * 30)
     except Exception as e:
         print(f"生成 getsid.bat 文件时发生错误: {str(e)}")
+
