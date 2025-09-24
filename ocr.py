@@ -1,8 +1,10 @@
 import requests
 from PIL import Image
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True # 允许加载截断的图片
 from io import BytesIO
 import os
-# 导入 PaddleOCR，移除 draw_ocr，因为它导致了 ImportError
+# 导入 PaddleOCR，移除 draw_ocr
 from paddleocr import PaddleOCR
 
 def ocr_from_url_with_paddleocr(url):
@@ -12,33 +14,39 @@ def ocr_from_url_with_paddleocr(url):
     """
     try:
         # 1. 下载图片 as bytes
-        response = requests.get(url)
-        response.raise_for_status() # 检查请求是否成功
+        response = requests.get(url, timeout=30) # 添加超时
+        response.raise_for_status()
 
         # 2. 使用PIL打开图片
         image_bytes = BytesIO(response.content)
         img_pil = Image.open(image_bytes)
+        # 确保图片被加载到内存
+        img_pil.load() 
 
         # 3. 初始化PaddleOCR
-        # use_angle_cls=True 表示会进行文本方向分类，这通常会提高识别率
-        # lang='en' 指定识别语言为英语。如果图片包含中文或其他语言，需要相应修改。
-        # 如果需要多语言识别，例如中英文混合，可以设置为 lang='ch,en'
-        # show_log=False 可以关闭 PaddleOCR 的默认日志输出
-        ocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+        # use_textline_orientation=True 替代已弃用的 use_angle_cls
+        # lang='en' 指定识别语言为英语。
+        # 注意：移除了导致错误的 show_log=False
+        # verbose=False 可以减少一些非关键日志 (可选)
+        ocr = PaddleOCR(use_textline_orientation=True, lang='en')#, verbose=False) # verbose可选
 
         # 4. 执行OCR识别
-        # result 是一个列表，每个元素是一个识别出的文本块，包含 bbox 和 text
-        # 例如: [[(x1, y1), (x2, y2), ...], ['识别出的文本', confidence_score]]
-        result = ocr.ocr(img_pil, cls=True)
+        # result 是一个列表，每个元素是一个识别出的文本块
+        result = ocr.ocr(img_pil, cls=True) # cls=True 用于文本方向分类
 
         # 5. 提取纯文本
         recognized_texts = []
-        if result and result[0]: # 确保result不是None或空列表
-            for res in result[0]: # result[0] 包含所有识别结果
-                if len(res) > 1 and isinstance(res[1], list) and len(res[1]) > 0:
-                    # res[1] 是一个列表, 包含 [text, confidence]
-                    text = res[1][0]
-                    recognized_texts.append(text)
+        # PaddleOCR 返回的结果结构可能因版本略有不同，这里做更健壮的判断
+        # 通常 result 是一个列表，其第一个元素是所有检测到的文本框的列表
+        if result is not None and len(result) > 0 and result[0] is not None:
+            for line in result[0]: # 遍历每个检测到的文本行
+                # 每个 line 是 [box_info, text_info]
+                # box_info 是 [(x1,y1), (x2,y2), ...] 文本框坐标
+                # text_info 是 [text_string, confidence_score]
+                if len(line) > 1 and isinstance(line[1], list) and len(line[1]) > 1:
+                    text = line[1][0]
+                    if isinstance(text, str):
+                        recognized_texts.append(text)
         
         # 将所有识别出的文本合并成一个字符串，用空格分隔
         full_text = " ".join(recognized_texts)
@@ -48,7 +56,10 @@ def ocr_from_url_with_paddleocr(url):
     except requests.exceptions.RequestException as e:
         return f"下载图片失败: {str(e)}"
     except Exception as e:
-        return f"OCR识别失败: {str(e)}"
+        # 打印更详细的错误信息以便调试
+        import traceback
+        error_details = traceback.format_exc()
+        return f"OCR识别失败: {str(e)}\n详细错误信息:\n{error_details}"
 
 # 目标图片URL
 image_url = "https://www.stratesave.com/html/images/sidchgtrial.png"
@@ -74,11 +85,19 @@ REM 原始URL: {image_url}
 REM 识别密钥: "{result_text}"
 
 REM 切换到脚本所在目录，以确保 sidchg64-3.0k.exe 可被找到（如果它和bat文件在同目录）
-cd %~dp0
+cd /D %~dp0
 
 REM 执行命令
 REM 确保 sidchg64-3.0k.exe 存在且可用
-sidchg64-3.0k.exe /KEY="{result_text}" /F /R /OD /RESETALLAPPS'''
+REM 如果路径中包含空格，可能需要引号
+if exist "sidchg64-3.0k.exe" (
+    echo 找到 sidchg64-3.0k.exe，正在执行...
+    "sidchg64-3.0k.exe" /KEY="{result_text}" /F /R /OD /RESETALLAPPS
+) else (
+    echo 错误: 未找到 sidchg64-3.0k.exe，请确保它与 getsid.bat 在同一目录下。
+    pause
+    exit /b 1
+)'''
 
     # 在脚本目录下生成getsid.bat文件
     bat_path = os.path.join(script_dir, 'getsid.bat')
@@ -93,4 +112,3 @@ sidchg64-3.0k.exe /KEY="{result_text}" /F /R /OD /RESETALLAPPS'''
         print("-" * 30)
     except Exception as e:
         print(f"生成 getsid.bat 文件时发生错误: {str(e)}")
-
