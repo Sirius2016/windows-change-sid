@@ -1,123 +1,89 @@
 import os
 import requests
-from paddleocr import PaddleOCR
 from PIL import Image
-import io
-import numpy as np
+import pytesseract
+import tempfile
+
+# 配置 Tesseract 路径（Windows 用户需指定，Linux/macOS 通常无需设置）
+# 如果你已将 Tesseract 添加到系统 PATH，可忽略此行。
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 def ocr_from_url(image_url):
     """
-    从URL下载图片并进行OCR识别
+    从网络图片 URL 下载图片并 OCR 识别文字
     """
     try:
         print(f"正在下载图片: {image_url}")
-        # 下载图片
-        response = requests.get(image_url, timeout=30)
+        response = requests.get(image_url, timeout=10)
         response.raise_for_status()
-        
-        # 将图片内容转换为PIL Image对象
-        image = Image.open(io.BytesIO(response.content))
-        
-        # 转换为numpy数组
-        image_np = np.array(image)
-        
-        print("正在初始化OCR引擎...")
-        # 初始化PaddleOCR - 使用最新版API
-        ocr = PaddleOCR(lang='en')
-        
-        print("正在进行OCR识别...")
-        # 执行OCR识别
-        result = ocr.ocr(image_np)
-        
-        print("正在解析识别结果...")
-        # 提取识别的文本
-        extracted_text = ""
-        
-        # 处理OCR结果
-        if result and len(result) > 0 and result[0]:
-            for line in result[0]:
-                if line and len(line) >= 2:
-                    text_info = line[1]
-                    if text_info and len(text_info) >= 1:
-                        text = text_info[0]
-                        if text and isinstance(text, str):
-                            extracted_text += text + " "
-        
-        final_result = extracted_text.strip()
-        print(f"识别完成，结果: '{final_result}'")
-        return final_result
-    
+
+        # 使用临时文件避免写入磁盘（可选）
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+            tmp_file.write(response.content)
+            tmp_path = tmp_file.name
+
+        # 打开图片并 OCR 识别
+        print("正在识别图片文字...")
+        image = Image.open(tmp_path)
+        # 可选：预处理图片提高识别率（灰度、二值化）
+        image = image.convert('L')  # 转为灰度
+        text = pytesseract.image_to_string(image, lang='eng').strip()
+
+        # 清理临时文件
+        os.unlink(tmp_path)
+
+        if not text:
+            print("⚠️ 识别结果为空，请检查图片清晰度或文字颜色。")
+        else:
+            print(f"✅ 识别成功: {text}")
+
+        return text
+
     except Exception as e:
-        print(f"OCR识别过程中发生错误: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ OCR 失败: {e}")
         return ""
 
-def main():
+def generate_bat_script(result, script_dir=None):
     """
-    主函数：执行OCR识别并生成bat脚本
+    生成 getsid.bat 脚本，使用识别出的密钥
     """
-    # 图片URL
-    image_url = "https://www.stratesave.com/html/images/sidchgtrial.png"
-    
-    print("=" * 60)
-    print("OCR识别与脚本生成工具")
-    print("=" * 60)
-    
-    # 识别并打印结果
-    result = ocr_from_url(image_url)
-    
-    print("\n识别结果:")
-    print("-" * 40)
-    print(result)
-    print("-" * 40)
-    
-    # 检查识别结果
-    if not result:
-        print("\n❌ OCR识别失败，无法生成脚本")
-        return
-    
-    # 生成getsid.bat脚本
-    print("\n正在生成getsid.bat脚本...")
-    
-    # 获取脚本所在目录
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # 生成bat文件内容
+    if script_dir is None:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+
     bat_content = f'''@echo off
 cd %~dp0
-sidchg64-3.0k.exe /KEY="{result}" /F /R /OD /RESETALLAPP
+sidchg64-3.0k.exe /KEY="{result}" /F /R /OD /RESETALLAPPS
+pause
 '''
-    
-    # 在脚本目录下生成getsid.bat文件
+
     bat_path = os.path.join(script_dir, 'getsid.bat')
-    
+
     try:
         with open(bat_path, 'w', encoding='utf-8') as f:
             f.write(bat_content)
-        
-        print(f"✅ 脚本生成成功!")
-        print(f"脚本路径: {bat_path}")
-        
-        # 显示生成的脚本内容
-        print("\n生成的脚本内容:")
-        print("-" * 40)
-        with open(bat_path, 'r', encoding='utf-8') as f:
-            print(f.read())
-        print("-" * 40)
-        
-        # 保存识别结果到文本文件
-        result_path = os.path.join(script_dir, 'ocr_result.txt')
-        with open(result_path, 'w', encoding='utf-8') as f:
-            f.write(result)
-        print(f"\n识别结果已保存到: {result_path}")
-        
+        print(f"✅ .bat 文件已生成: {bat_path}")
+        return bat_path
     except Exception as e:
-        print(f"❌ 生成脚本时发生错误: {e}")
-    
-    print("\n" + "=" * 60)
-    print("程序执行完成")
-    print("=" * 60)
+        print(f"❌ 生成 .bat 文件失败: {e}")
+        return None
 
+# ========== 主程序 ==========
 if __name__ == "__main__":
-    main()
+    image_url = "https://www.stratesave.com/html/images/sidchgtrial.png"
+
+    # 1. OCR 识别图片
+    result = ocr_from_url(image_url)
+
+    if not result:
+        print("❌ 未识别到有效文本，脚本终止。")
+        exit(1)
+
+    print("\n" + "="*50)
+    print("识别结果（赋值给result变量）:")
+    print(result)
+    print("="*50 + "\n")
+
+    # 2. 生成 .bat 文件
+    generate_bat_script(result)
+
+    print("\n🎉 操作完成！请在脚本所在目录检查 getsid.bat 文件。")
