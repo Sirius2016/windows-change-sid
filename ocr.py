@@ -7,11 +7,10 @@ from paddleocr import PaddleOCR
 def ocr_from_url(image_url):
     # 下载图片
     response = requests.get(image_url)
-    image = Image.open(BytesIO(response.content))
     # 初始化PaddleOCR
     ocr = PaddleOCR(use_angle_cls=True, lang="ch")
     # 识别图片
-    result = ocr.ocr(BytesIO(response.content), cls=True)
+    result = ocr.ocr(BytesIO(response.content), use_angle_cls=True)
     # 提取识别结果
     recognized_text = ' '.join([line[1][0] for line in result])
     return recognized_text
