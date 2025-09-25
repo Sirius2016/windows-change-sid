@@ -29,16 +29,16 @@ jobs:
     #    注意：这里直接指定了 GPU 版本，如果你的 runner 没有 GPU，需要改为 CPU 版本
     #    https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/linux-quickstart.html
     #    CPU 版本安装命令示例：python -m pip install paddlepaddle==3.0.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
-    - name: Install PaddlePaddle
-      run: |
-        python -m pip install --upgrade pip
-        # 此处使用 CPU 版本，以兼容大多数 runner 环境
-        # 如果你的 runner 支持 GPU 且有需求，请参考 PaddlePaddle 官网选择合适的 GPU 版本安装命令
-        pip install paddlepaddle==3.0.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+    #- name: Install PaddlePaddle
+    #  run: |
+    #    python -m pip install --upgrade pip
+    #    # 此处使用 CPU 版本，以兼容大多数 runner 环境
+    #    # 如果你的 runner 支持 GPU 且有需求，请参考 PaddlePaddle 官网选择合适的 GPU 版本安装命令
+    #    pip install paddlepaddle==3.0.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
 
     # 4. 安装 PaddleOCR
-    - name: Install PaddleOCR
-      run: pip install "paddleocr[all]"
+    #- name: Install PaddleOCR
+    #  run: pip install "paddleocr[all]"
 
     # 5. 安装其他 Python 依赖 (如果 requirements.txt 中包含 requests, Pillow 等)
     #    注意：移除 Tesseract 相关依赖，因为我们不再使用它
