@@ -2,5 +2,7 @@ paddlepaddle==3.0.0
 paddleocr==3.0.0
 requests
 Pillow
+pillow
+pytesseract
 numpy
 opencv-python
