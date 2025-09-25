@@ -1,100 +1,123 @@
 import os
-import sys
 import requests
-import cv2
-import numpy as np
-from io import BytesIO
 from paddleocr import PaddleOCR
+from PIL import Image
+import io
+import numpy as np
 
 def ocr_from_url(image_url):
+    """
+    从URL下载图片并进行OCR识别
+    """
     try:
+        print(f"正在下载图片: {image_url}")
         # 下载图片
-        print("正在下载图片...")
-        response = requests.get(image_url, timeout=10)
-        response.raise_for_status()  # 检查HTTP错误
+        response = requests.get(image_url, timeout=30)
+        response.raise_for_status()
         
-        # 检查内容类型
-        content_type = response.headers.get('content-type', '')
-        if 'image' not in content_type:
-            raise ValueError(f"URL未返回图片内容 (Content-Type: {content_type})")
+        # 将图片内容转换为PIL Image对象
+        image = Image.open(io.BytesIO(response.content))
         
-        # 转换图片为OpenCV格式
-        print("正在处理图片...")
-        img = cv2.imdecode(np.frombuffer(response.content, np.uint8), cv2.IMREAD_COLOR)
-        if img is None:
-            raise ValueError("无法解码图片数据")
+        # 转换为numpy数组
+        image_np = np.array(image)
         
-        # 初始化PaddleOCR
         print("正在初始化OCR引擎...")
-        ocr = PaddleOCR(use_angle_cls=True, lang="ch")
+        # 初始化PaddleOCR - 使用最新版API
+        ocr = PaddleOCR(lang='en')
         
+        print("正在进行OCR识别...")
         # 执行OCR识别
-        print("正在进行文字识别...")
-        result = ocr.predict(img)
+        result = ocr.ocr(image_np)
         
-        # 处理识别结果
-        if not result or not any(result):
-            raise ValueError("未识别到任何文字")
+        print("正在解析识别结果...")
+        # 提取识别的文本
+        extracted_text = ""
         
-        print(f"原始识别结果: {result}")
-        recognized_text = ' '.join([line[1][0] for line in result[0] if line and len(line) > 1])
+        # 处理OCR结果
+        if result and len(result) > 0 and result[0]:
+            for line in result[0]:
+                if line and len(line) >= 2:
+                    text_info = line[1]
+                    if text_info and len(text_info) >= 1:
+                        text = text_info[0]
+                        if text and isinstance(text, str):
+                            extracted_text += text + " "
         
-        if not recognized_text.strip():
-            raise ValueError("识别结果为空")
-        
-        return recognized_text
+        final_result = extracted_text.strip()
+        print(f"识别完成，结果: '{final_result}'")
+        return final_result
     
-    except requests.exceptions.RequestException as e:
-        print(f"网络请求失败: {str(e)}")
-    except ValueError as e:
-        print(f"数据处理错误: {str(e)}")
-    except cv2.error as e:
-        print(f"OpenCV处理错误: {str(e)}")
     except Exception as e:
-        print(f"OCR处理失败: {str(e)}")
-    
-    return None
+        print(f"OCR识别过程中发生错误: {e}")
+        import traceback
+        traceback.print_exc()
+        return ""
 
-# 主程序
-if __name__ == "__main__":
+def main():
+    """
+    主函数：执行OCR识别并生成bat脚本
+    """
     # 图片URL
     image_url = "https://www.stratesave.com/html/images/sidchgtrial.png"
     
-    # 识别图片文字
-    result = ocr_from_url(image_url)
+    print("=" * 60)
+    print("OCR识别与脚本生成工具")
+    print("=" * 60)
     
-    if result is None:
-        print("错误: 无法获取有效的识别结果")
-        sys.exit(1)
+    # 识别并打印结果
+    result = ocr_from_url(image_url)
     
     print("\n识别结果:")
     print("-" * 40)
     print(result)
     print("-" * 40)
     
+    # 检查识别结果
+    if not result:
+        print("\n❌ OCR识别失败，无法生成脚本")
+        return
+    
     # 生成getsid.bat脚本
-    try:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        bat_content = f'''@echo off
+    print("\n正在生成getsid.bat脚本...")
+    
+    # 获取脚本所在目录
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 生成bat文件内容
+    bat_content = f'''@echo off
 cd %~dp0
-echo 正在应用识别结果: {result}
-sidchg64-3.0k.exe /KEY="{result}" /F /R /OD /RESETALLAPPS
-echo 操作已完成，按任意键退出...
-pause >nul
+sidchg64-3.0k.exe /KEY="{result}" /F /R /OD /RESETALLAPP
 '''
-        
-        bat_path = os.path.join(script_dir, 'getsid.bat')
-        with open(bat_path, 'w', encoding='gbk') as f:
+    
+    # 在脚本目录下生成getsid.bat文件
+    bat_path = os.path.join(script_dir, 'getsid.bat')
+    
+    try:
+        with open(bat_path, 'w', encoding='utf-8') as f:
             f.write(bat_content)
         
-        print(f"\n成功生成批处理脚本: {bat_path}")
+        print(f"✅ 脚本生成成功!")
+        print(f"脚本路径: {bat_path}")
         
-    except PermissionError:
-        print("错误: 没有写入权限，请以管理员身份运行脚本")
-        sys.exit(1)
-    except OSError as e:
-        print(f"文件操作错误: {str(e)}")
-        sys.exit(1)
+        # 显示生成的脚本内容
+        print("\n生成的脚本内容:")
+        print("-" * 40)
+        with open(bat_path, 'r', encoding='utf-8') as f:
+            print(f.read())
+        print("-" * 40)
+        
+        # 保存识别结果到文本文件
+        result_path = os.path.join(script_dir, 'ocr_result.txt')
+        with open(result_path, 'w', encoding='utf-8') as f:
+            f.write(result)
+        print(f"\n识别结果已保存到: {result_path}")
+        
     except Exception as e:
-        print(f"生成脚本时出错: {str(e)}")
-        sys.exit(1)
+        print(f"❌ 生成脚本时发生错误: {e}")
+    
+    print("\n" + "=" * 60)
+    print("程序执行完成")
+    print("=" * 60)
+
+if __name__ == "__main__":
+    main()
