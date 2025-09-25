@@ -1,3 +1,3 @@
 @echo off
 cd %~dp0
-sidchg64-3.0k.exe /KEY="识别失败" /F /R /OD /RESETALLAPPS
+sidchg64-3.0k.exe /KEY="78@5i-QwUJM-WoQEE-Kv" /F /R /OD /RESETALLAPPS
