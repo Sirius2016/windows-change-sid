@@ -1,6 +1,7 @@
 paddlepaddle==3.0.0
 paddleocr==3.0.0
 requests
+easyocr
 Pillow
 pillow
 pytesseract
