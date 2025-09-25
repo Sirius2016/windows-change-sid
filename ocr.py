@@ -8,7 +8,7 @@ def ocr_from_url(image_url):
     # 下载图片
     response = requests.get(image_url)
     # 初始化PaddleOCR
-    ocr = PaddleOCR(use_angle_cls=True, lang="ch")
+    ocr = PaddleOCR(use_angle_cls=True, lang="en")
     # 识别图片
     result = ocr.ocr(BytesIO(response.content), use_angle_cls=True)
     # 提取识别结果
